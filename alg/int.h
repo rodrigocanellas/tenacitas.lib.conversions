@@ -16,7 +16,7 @@
 #include <string>
 #include <type_traits>
 
-namespace tenacitas::conversions::alg {
+namespace tenacitas::lib::conversions::alg {
 
 /// \brief Basic type conversion template function
 template <typename t_to, typename t_from>
@@ -1239,5 +1239,5 @@ template <typename t_to> std::optional<t_to> to_int(const char *p_str) {
 //   cvt<t_iterator, t_types...>(++p_ite, p_values...);
 // }
 
-} // namespace tenacitas::lib::conversion::alg
+} // namespace tenacitas::lib::conversions::alg
 #endif // CONVERT_H

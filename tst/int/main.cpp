@@ -3,12 +3,12 @@
 #include <limits>
 #include <optional>
 
-#include <tenacitas.conversions/alg/convert.h>
-#include <tenacitas/lib/program/alg/options.h>
-#include <tenacitas/lib/test/alg/tester.h>
+#include <tenacitas.lib.conversions/alg/int.h>
+#include <tenacitas.lib.program/alg/options.h>
+#include <tenacitas.lib.test/alg/tester.h>
 
 using namespace tenacitas::lib;
-using namespace tenacitas::conversions;
+using namespace tenacitas::lib::conversions;
 
 struct test000 {
   static std::string desc() { return "internal::to_int<uint8_t>(\"256\")"; }
@@ -88,7 +88,7 @@ struct test002 {
 };
 
 int main(int argc, char **argv) {
-  tester::alg::test _test(argc, argv);
+  test::alg::tester _test(argc, argv);
 
   run_test(_test, test000);
   run_test(_test, test001);
