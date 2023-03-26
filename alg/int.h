@@ -1,27 +1,72 @@
-//#ifndef TENACITAS_LIB_CONVERSIONS_ALG_INT_H
-//#define TENACITAS_LIB_CONVERSIONS_ALG_INT_H
+#ifndef TENACITAS_LIB_CONVERSIONS_ALG_INT_H
+#define TENACITAS_LIB_CONVERSIONS_ALG_INT_H
 
-///// \copyright This file is under GPL 3 license. Please read the \p LICENSE
-///file
-///// at the root of \p tenacitas directory
+/// \copyright This file is under GPL 3 license. Please read the \p LICENSE file
+/// at the root of \p tenacitas directory
 
-///// \author Rodrigo Canellas - rodrigo.canellas at gmail.com
+/// \author Rodrigo Canellas - rodrigo.canellas at gmail.com
 
-//#include <cstddef>
-//#include <cstdint>
-//#include <cstdlib>
-//#include <cstring>
-//#include <iostream>
-//#include <limits>
-//#include <optional>
-//#include <string>
-//#include <type_traits>
+#include <cstring>
+#include <optional>
+#include <string>
 
-//#include <tenacitas.lib.conversions/alg/cvt.h>
+#include <tenacitas.lib.conversions/alg/internal/internal.h>
 
-// namespace tenacitas::lib::conversions::alg {
+namespace tenacitas::lib::conversions::alg {
 
-//} // namespace tenacitas::lib::conversions::alg
+template <typename t_to>
+std::optional<t_to> cvt(const char *p_begin, const char *p_end) {
+
+  if constexpr (!std::is_integral_v<t_to>) {
+    return {};
+  }
+  if constexpr (std::is_floating_point_v<t_to>) {
+    return {};
+  }
+
+  bool _negative = false;
+
+  if (*p_begin == '+') {
+    ++p_begin;
+  } else if (*p_begin == '-') {
+    ++p_begin;
+    _negative = true;
+  }
+
+  constexpr bool _unsigned{std::is_unsigned_v<t_to>};
+
+  if (_negative && _unsigned) {
+    return {};
+  }
+
+  if (_unsigned) {
+    return internal::to_uint<t_to>(p_begin, p_end);
+  }
+  return internal::to_sint<t_to>(p_begin, p_end, _negative);
+}
+
+template <typename t_to> std::optional<t_to> cvt(const char *p_from) {
+  return cvt<t_to>(p_from, p_from + strlen(p_from));
+}
+
+template <typename t_to, typename t_size>
+std::optional<t_to> cvt(const char *p_from, t_size p_size) {
+  return cvt<t_to>(p_from, p_from + p_size);
+}
+
+template <typename t_to> std::optional<t_to> cvt(const std::string &p_from) {
+  return cvt<t_to>(&p_from[0], &p_from[p_from.size()]);
+}
+
+template <typename t_to> std::optional<t_to> cvt(std::string &&p_from) {
+  return cvt<t_to>(&p_from[0], &p_from[p_from.size()]);
+}
+
+template <typename t_to> std::optional<t_to> cvt(std::string_view &p_from) {
+  return cvt<t_to>(&p_from[0], &p_from[p_from.size()]);
+}
+
+} // namespace tenacitas::lib::conversions::alg
 
 //// template <> inline uint8_t cvt(const char *p_from) {
 ////   try {
@@ -863,11 +908,11 @@
 /////// \tparam t_fields are the types of the elements of the tuple
 ///////
 /////// \param p_tuple is the tuple that will contain the converted values of
-///the
+/// the
 /////// container
 ///////
 /////// \param p_ite is a iterator to the container that contains the values to
-///be
+/// be
 /////// converted
 ///////
 /////// \attention It is necessary to implement a \p cvt function from the
@@ -1072,4 +1117,4 @@
 //// }
 
 ////} // namespace tenacitas::lib::conversions::alg
-//#endif // CONVERT_H
+#endif // CONVERT_H

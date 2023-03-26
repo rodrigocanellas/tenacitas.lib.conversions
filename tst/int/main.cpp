@@ -3,21 +3,19 @@
 #include <limits>
 #include <optional>
 
-#include <tenacitas.lib.conversions/alg/cvt.h>
+#include <tenacitas.lib.conversions/alg/int.h>
 #include <tenacitas.lib.program/alg/options.h>
 #include <tenacitas.lib.test/alg/tester.h>
 
 using namespace tenacitas::lib;
-using namespace tenacitas::lib::conversions;
+using namespace tenacitas::lib::conversions::alg;
 
 struct test000 {
-  static std::string desc() { return "internal::to_int<uint8_t>(\"256\")"; }
+  static std::string desc() { return "cvt<uint8_t>(\"256\")"; }
 
   bool operator()(const program::alg::options &) {
 
-    using namespace alg::internal;
-
-    std::optional<uint8_t> _maybe{to_int<uint8_t>("256")};
+    std::optional<uint8_t> _maybe{cvt<uint8_t>("256")};
 
     if (_maybe) {
       std::cerr << "It should not have converted, but it did to "
@@ -31,13 +29,11 @@ struct test000 {
 };
 
 struct test001 {
-  static std::string desc() { return "internal::to_int<uint8_t>(\"345\")"; }
+  static std::string desc() { return "cvt<uint8_t>(\"345\")"; }
 
   bool operator()(const program::alg::options &) {
 
-    using namespace alg::internal;
-
-    auto _maybe{to_int<uint8_t>("345")};
+    auto _maybe{cvt<uint8_t>("345")};
 
     if (_maybe) {
       std::cerr << "It should not have converted, but it did to "
@@ -52,13 +48,11 @@ struct test001 {
 };
 
 struct test002 {
-  static std::string desc() { return "internal::to_int<uint8_t>(\"255\")"; }
+  static std::string desc() { return "cvt<uint8_t>(\"255\")"; }
 
   bool operator()(const program::alg::options &) {
 
-    using namespace alg::internal;
-
-    auto _maybe{to_int<uint8_t>("255")};
+    auto _maybe{cvt<uint8_t>("255")};
 
     if (!_maybe) {
       std::cerr << "It did convert, but it should have\n";
@@ -80,13 +74,55 @@ struct test002 {
 };
 
 struct test003 {
-  static std::string desc() { return "internal::to_int<uint8_t>(\"1234\")"; }
+  static std::string desc() { return "cvt<uint8_t>(\"1234\")"; }
 
   bool operator()(const program::alg::options &) {
 
-    using namespace alg::internal;
+    auto _maybe{cvt<uint8_t>("1234")};
 
-    auto _maybe{to_int<uint8_t>("1234")};
+    if (_maybe) {
+      std::cerr << "It should not have converted, but it did to "
+                << _maybe.value() << '\n';
+      return false;
+    }
+
+    std::cerr << "It did not convert, as expected\n";
+
+    return true;
+  }
+};
+
+struct test100 {
+  static std::string desc() { return "cvt<int8_t>(\"-127\")"; }
+
+  bool operator()(const program::alg::options &) {
+
+    auto _maybe{cvt<int8_t>("-127")};
+
+    if (!_maybe) {
+      std::cerr << "It did convert, but it should have\n";
+      return false;
+    }
+
+    auto _i{std::move(_maybe.value())};
+    if (_i != -127) {
+      std::cerr << "It converted to " << static_cast<int16_t>(_i)
+                << ", but it should have converted to -127z\n";
+      return false;
+    }
+
+    std::cerr << "It converted to " << static_cast<int16_t>(_maybe.value())
+              << ", as expected\n";
+    return true;
+  }
+};
+
+struct test101 {
+  static std::string desc() { return "cvt<int8_t>(\"-129\")"; }
+
+  bool operator()(const program::alg::options &) {
+
+    auto _maybe{cvt<int8_t>("-129")};
 
     if (_maybe) {
       std::cerr << "It should not have converted, but it did to "
@@ -107,4 +143,6 @@ int main(int argc, char **argv) {
   run_test(_test, test001);
   run_test(_test, test002);
   run_test(_test, test003);
+  run_test(_test, test100);
+  run_test(_test, test101);
 }
