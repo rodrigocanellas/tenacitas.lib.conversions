@@ -1,27 +1,30 @@
-#ifndef TENACITAS_LIB_CONVERSIONS_ALG_INT_H
-#define TENACITAS_LIB_CONVERSIONS_ALG_INT_H
+#ifndef TENACITAS_LIB_CONVERSIONS_ALG_CVT_H
+#define TENACITAS_LIB_CONVERSIONS_ALG_CVT_H
 
 /// \copyright This file is under GPL 3 license. Please read the \p LICENSE file
 /// at the root of \p tenacitas directory
 
 /// \author Rodrigo Canellas - rodrigo.canellas at gmail.com
 
-#include <optional>
+#include <memory>
 #include <stdexcept>
 #include <typeinfo>
+#include <utility>
+
+#include <tenacitas.lib.conversions/alg/int.h>
 
 namespace tenacitas::lib::conversions::alg {
 
 /// \brief Basic type conversion template function
-template <typename t_to, typename t_from> std::optional<t_to> cnvt(t_from);
+template <typename t_to, typename t_from>
+constexpr std::pair<std::unique_ptr<std::string>, t_to> cvt(t_from &&) {
+  return {std::make_unique<std::string>("no conversion defined from '" +
+                                        std::string{typeid(t_from).name()} +
+                                        "' to '" +
+                                        std::string{typeid(t_to).name()} + "'"),
+          {}};
+}
 
 } // namespace tenacitas::lib::conversions::alg
-
-template <typename t_to, typename t_from>
-std::optional<t_to> tenacitas::lib::conversions::alg::cnvt(t_from) {
-  throw std::runtime_error("no conversion defined from '" +
-                           std::string{typeid(t_from).name()} + "' to '" +
-                           std::string{typeid(t_to).name()} + "'");
-}
 
 #endif

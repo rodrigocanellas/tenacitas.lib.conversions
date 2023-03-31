@@ -10,21 +10,19 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
+#include <iostream>
 #include <limits>
-#include <optional>
+#include <locale>
+#include <map>
+#include <memory>
+#include <utility>
+
+#include <tenacitas.lib.conversions/typ/base.h>
+#include <tenacitas.lib.conversions/typ/result.h>
+#include <tenacitas.lib.conversions/typ/separator.h>
 
 namespace tenacitas::lib::conversions::alg::internal {
-
-template <typename t_to> bool overflow(int64_t p_val) {
-  if constexpr (sizeof(t_to) < 8) {
-    if (p_val < std::numeric_limits<t_to>::min()) {
-      return true;
-    }
-  } else if (static_cast<t_to>(p_val) <= std::numeric_limits<t_to>::max()) {
-    return true;
-  }
-  return false;
-}
 
 template <size_t int_size, bool is_signed> struct next_int;
 
@@ -44,70 +42,446 @@ template <> struct next_int<4, true> { using type = int64_t; };
 
 template <> struct next_int<8, true> { using type = int64_t; };
 
-template <typename t_to>
-std::optional<t_to> to_uint(const char *p_begin, const char *p_end) {
-  using _next_int = typename next_int<sizeof(t_to), false>::type;
+static const std::map<char, std::string> g_ints_names{
+    {'h', "uint8_t"},  {'a', "int8_t"},  {'t', "uint16_t"}, {'s', "int16_t"},
+    {'j', "uint32_t"}, {'i', "int32_t"}, {'m', "uint64_t"}, {'l', "int64_t"}};
 
-  t_to _result = 0;
+template <typename t_to, typ::base t_base> struct from_decimal;
 
-  const char *_ite = p_begin;
+template <typename t_to> struct from_decimal<t_to, typ::base::b10> {
 
-  while (_ite != p_end) {
-    if (std::isdigit(static_cast<uint8_t>(*_ite)) == 0) {
-      return {};
+  constexpr typ::result<t_to> operator()(const char *p_begin,
+                                         const char *p_end) {
+
+    bool _negative = false;
+
+    constexpr bool _unsigned{std::is_unsigned_v<t_to>};
+
+    const char *_p{p_begin};
+
+    //  if ((*_p == '0') && ((*(_p + 1) == 'x') || (*(_p + 1) == 'X'))) {
+    //    return internal::to_int_from_hexa<t_to>(_p + 2, p_end);
+    //  }
+
+    //  if ((*_p == 'x') || (*_p == 'X')) {
+    //    return internal::to_int_from_hexa<t_to>(_p + 1, p_end);
+    //  }
+
+    if (*_p == '+') {
+      ++_p;
+    } else if (*p_begin == '-') {
+      ++_p;
+      _negative = true;
     }
 
-    const auto _prod{static_cast<_next_int>(_result * 10)};
-
-    if ((_result != 0) &&
-        ((_prod == 0) || (_prod > std::numeric_limits<t_to>::max()))) {
-      return {};
+    if (_negative && _unsigned) {
+      return {std::make_unique<std::string>(
+                  std::string{p_begin, p_end} + " is a negative number, but " +
+                  internal::g_ints_names.at(typeid(t_to).name()[0]) +
+                  " is a unsigned type"),
+              {}};
     }
 
-    _result = _prod;
-
-    const auto _sum{
-        static_cast<t_to>(_result + static_cast<uint8_t>(*_ite - '0'))};
-
-    if ((_result != 0) && (_sum == 0)) {
-      return {};
+    if (_unsigned) {
+      return unsigned_int(_p, p_end);
     }
-
-    _result = _sum;
-
-    ++_ite;
+    if (_negative) {
+      return signed_int(_p, p_end);
+    }
+    return unsigned_int(_p, p_end);
   }
-  return _result;
-}
 
-template <typename t_to>
-std::optional<t_to> to_sint(const char *p_begin, const char *p_end,
-                            bool p_negative = false) {
+private:
+  struct is_valid {
+    std::unique_ptr<std::string>
+    operator()(const char *p_begin, const char *p_end, const char **p_c) {
+      if ((**p_c != typ::thousands) && (!std::isdigit(**p_c))) {
+        return std::make_unique<std::string>(
+            std::string{**p_c} +
+            " is not a thounsand separator or a digit in " +
+            std::string{p_begin, p_end});
+      }
+
+      if (**p_c == typ::thousands) {
+        if (!m_thousands_sep_found) { // first thounsand separator found
+          if (m_total_counter_digits > 3) {
+            // "9999,"
+            return std::make_unique<std::string>(
+                std::string{**p_c} + " is a thounsand separator, but " +
+                std::to_string(static_cast<uint16_t>(m_total_counter_digits)) +
+                " were already found in " + std::string{p_begin, p_end});
+          }
+          if (m_total_counter_digits == 0) {
+            // ","
+            return std::make_unique<std::string>(
+                std::string{**p_c} +
+                " is a thounsand separator, but it is the first character in " +
+                std::string{p_begin, p_end});
+          }
+          m_thousands_sep_found = true;
+          ++(*p_c);
+        } else { // _thounsand_sep_found = true
+          if (m_counter_digits == 3) {
+            m_counter_digits = 0;
+
+            ++(*p_c);
+            if ((*p_c) == p_end) { // check for the end of the string
+              return std::make_unique<std::string>(
+                  std::string{**p_c} +
+                  " is a thounsand separator, but it is the last character "
+                  "in " +
+                  std::string{p_begin, p_end});
+            }
+          }
+        }
+      } else {
+        if (m_thousands_sep_found) {
+          if (m_counter_digits == 3) {
+            return std::make_unique<std::string>(
+                std::string{**p_c} +
+                " is the fourth digit since last thounsand separator " +
+                std::string{p_begin, p_end} + " in " +
+                std::string{p_begin, p_end});
+          }
+          ++m_counter_digits;
+
+        } else { // _thounsand_sep_found = false
+          ++m_total_counter_digits;
+        }
+      }
+      return nullptr;
+    }
+
+  private:
+    uint8_t m_total_counter_digits{0};
+    uint8_t m_counter_digits{0};
+    bool m_thousands_sep_found{false};
+  };
+
+private:
+  constexpr std::pair<std::unique_ptr<std::string>, t_to>
+  unsigned_int(const char *p_begin, const char *p_end) {
+
+    using next_int = typename next_int<sizeof(t_to), false>::type;
+
+    auto _multiplier =
+        [&](const char *p_begin, const char *p_end,
+            t_to p_to) -> std::pair<std::unique_ptr<std::string>, t_to> {
+      auto _mul{static_cast<next_int>(p_to) * 10};
+      if (_mul > std::numeric_limits<t_to>::max()) {
+        return {std::make_unique<std::string>(
+                    std::string{p_begin, p_end} +
+                    " overflows the maximum value for " +
+                    g_ints_names.at(typeid(t_to).name()[0])),
+                {}};
+      }
+      return {nullptr, static_cast<t_to>(_mul)};
+    };
+
+    auto _incrementer =
+        [&](const char *p_begin, const char *p_end, t_to p_value,
+            char p_c) -> std::pair<std::unique_ptr<std::string>, t_to> {
+      auto _sum{static_cast<next_int>(p_value + (p_c - '0'))};
+      if (_sum > std::numeric_limits<t_to>::max()) {
+        return {std::make_unique<std::string>(
+                    std::string{p_begin, p_end} +
+                    " overflows the maximum value for " +
+                    g_ints_names.at(typeid(t_to).name()[0])),
+                {}};
+      }
+
+      return {nullptr, static_cast<t_to>(_sum)};
+    };
+
+    is_valid _is_valid;
+
+    return to_integer<t_to, false>(
+        p_begin, p_end,
+        [&_is_valid](const char *p_begin, const char *p_end, const char **p_c) {
+          return _is_valid(p_begin, p_end, p_c);
+        },
+        _multiplier, _incrementer);
+  }
+
+  constexpr std::pair<std::unique_ptr<std::string>, t_to>
+  signed_int(const char *p_begin, const char *p_end) {
+
+    using next_int = typename next_int<sizeof(t_to), true>::type;
+
+    auto _multiplier =
+        [&](const char *p_begin, const char *p_end,
+            t_to p_to) -> std::pair<std::unique_ptr<std::string>, t_to> {
+      auto _mul{static_cast<next_int>(p_to) * 10};
+      if (_mul < std::numeric_limits<t_to>::min()) {
+        return {std::make_unique<std::string>(
+                    std::string{p_begin, p_end} +
+                    " underflows the minimum value for " +
+                    g_ints_names.at(typeid(t_to).name()[0])),
+                {}};
+      }
+      return {nullptr, static_cast<t_to>(_mul)};
+    };
+
+    auto _incrementer =
+        [&](const char *p_begin, const char *p_end, t_to p_value,
+            char p_c) -> std::pair<std::unique_ptr<std::string>, t_to> {
+      auto _sum{static_cast<next_int>(p_value - (p_c - '0'))};
+      if (_sum < std::numeric_limits<t_to>::min()) {
+        return {std::make_unique<std::string>(
+                    std::string{p_begin, p_end} +
+                    " underflows the minimum value for " +
+                    g_ints_names.at(typeid(t_to).name()[0])),
+                {}};
+      }
+
+      return {nullptr, static_cast<t_to>(_sum)};
+    };
+
+    is_valid _is_valid;
+
+    return to_integer<t_to, false>(
+        p_begin, p_end,
+        [&_is_valid](const char *p_begin, const char *p_end, const char **p_c) {
+          return _is_valid(p_begin, p_end, p_c);
+        },
+        _multiplier, _incrementer);
+  }
+};
+
+// template <typename t_to, char t_thousand_separator>
+// constexpr std::pair<std::unique_ptr<std::string>, t_to>
+// to_uint(const char *p_begin, const char *p_end) {
+//   using next_int = typename next_int<sizeof(t_to), false>::type;
+
+//  auto _over_under = [&](next_int p_value) -> bool {
+//    return p_value > std::numeric_limits<t_to>::max();
+//  };
+
+//  auto _make_ptr = [&](const char *p_begin, const char *p_end) {
+//    return std::make_unique<std::string>(
+//        std::string{p_begin, p_end} + " overflows the maximum value for " +
+//        g_ints_names.at(typeid(t_to).name()[0]));
+//  };
+
+//  auto _incrementer = [&](t_to p_value, uint8_t p_digit) {
+//    return static_cast<next_int>(p_value + p_digit);
+//  };
+
+//  return to_int<t_to, t_thousand_separator, false>(p_begin, p_end,
+//  _over_under,
+//                                                   _make_ptr, _incrementer);
+//}
+
+// template <typename t_to, char t_thousand_separator>
+// constexpr std::pair<std::unique_ptr<std::string>, t_to>
+// to_sint(const char *p_begin, const char *p_end) {
+//   using next_int = typename next_int<sizeof(t_to), true>::type;
+
+//  auto _over_under = [&](next_int p_value) -> bool {
+//    return p_value < std::numeric_limits<t_to>::min();
+//  };
+
+//  auto _make_ptr = [&](const char *p_begin, const char *p_end) {
+//    return std::make_unique<std::string>(
+//        std::string{p_begin, p_end} + " underflows the minimum value for " +
+//        g_ints_names.at(typeid(t_to).name()[0]));
+//  };
+
+//  auto _incrementer = [&](t_to p_value, uint8_t p_digit) {
+//    return static_cast<next_int>(p_value - p_digit);
+//  };
+
+//  return to_int<t_to, t_thousand_separator, true>(p_begin, p_end, _over_under,
+//                                                  _make_ptr, _incrementer);
+//}
+
+// template <typename t_to>
+// std::pair<std::unique_ptr<std::string>, t_to>
+// to_int_from_hexa(const char *p_begin, const char *p_end) {
+
+//  using next_int = typename next_int<sizeof(t_to), false>::type;
+
+//  auto _is_valid = [](const char *p_begin, const char *p_end,
+//                      char p_c) -> std::unique_ptr<std::string> {
+//    if (std::isdigit(p_c) || (std::isxdigit(p_c))) {
+//      return nullptr;
+//    }
+//    return std::make_unique<std::string>(std::string{p_c} +
+//                                         " is not an hexadecimal digit in " +
+//                                         std::string{p_begin, p_end});
+//  };
+
+//  auto _multiplier =
+//      [&](const char *p_begin, const char *p_end,
+//          t_to p_to) -> std::pair<std::unique_ptr<std::string>, t_to> {
+//    auto _mul{static_cast<next_int>(p_to) * 16};
+//    if (_mul > std::numeric_limits<t_to>::max()) {
+//      return {std::make_unique<std::string>(
+//                  std::string{p_begin, p_end} +
+//                  " overflows the maximum value for " +
+//                  g_ints_names.at(typeid(t_to).name()[0])),
+//              {}};
+//    }
+//    return {nullptr, static_cast<t_to>(_mul)};
+//  };
+
+//  auto _incrementer =
+//      [&](const char *p_begin, const char *p_end, t_to p_value,
+//          char p_c) -> std::pair<std::unique_ptr<std::string>, t_to> {
+//    char _c{static_cast<char>(std::toupper(p_c))};
+
+//    uint8_t _u{0};
+//    switch (_c) {
+//    case 'A':
+//      _u = 10;
+//      break;
+//    case 'B':
+//      _u = 11;
+//      break;
+//    case 'C':
+//      _u = 12;
+//      break;
+//    case 'D':
+//      _u = 13;
+//      break;
+//    case 'E':
+//      _u = 14;
+//      break;
+//    case 'F':
+//      _u = 15;
+//      break;
+//    default:
+//      _u = p_c - '0';
+//    }
+
+//    auto _sum{static_cast<next_int>(p_value + _u)};
+//    if (_sum > std::numeric_limits<t_to>::max()) {
+//      return {std::make_unique<std::string>(
+//                  std::string{p_begin, p_end} +
+//                  " overflows the maximum value for " +
+//                  g_ints_names.at(typeid(t_to).name()[0])),
+//              {}};
+//    }
+
+//    return {nullptr, static_cast<t_to>(_sum)};
+//  };
+
+//  return to_int1<t_to, ',', false>(p_begin, p_end, _is_valid, _multiplier,
+//                                   _incrementer);
+//}
+
+// template <typename t_to, char t_thousand_separator, bool t_negative>
+// std::pair<std::unique_ptr<std::string>, t_to> to_int(
+//     const char *p_begin, const char *p_end,
+//     std::function<
+//         bool(typename next_int<sizeof(t_to), t_negative>::type p_value)>
+//         p_over_under,
+//     std::function<std::unique_ptr<std::string>(const char *p_begin,
+//                                                const char *p_end)>
+//         p_make_ptr,
+
+//    std::function<typename next_int<sizeof(t_to), t_negative>::type(
+//        t_to p_increment, uint8_t p_digit)>
+//        p_incrementer,
+
+//    std::function<bool(char)> p_is_valid =
+//        [](char p_c) { return std::isdigit(p_c); },
+
+//    std::function<typename next_int<sizeof(t_to), t_negative>::type(t_to)>
+//        p_multiplier =
+//            [](t_to p_to) {
+//              return static_cast<
+//                  typename next_int<sizeof(t_to), t_negative>::type>(p_to *
+//                  10);
+//            }) {
+
+//  t_to _result = 0;
+
+//  const char *_ite{p_begin};
+
+//  while (_ite != p_end) {
+//    if (!p_is_valid(*_ite)) {
+//      return {
+//          std::make_unique<std::string>("there is a non digit character in " +
+//                                        std::string{p_begin, p_end}),
+//          {}};
+//    }
+
+//    const auto _prod{p_multiplier(_result)};
+
+//    if ((_result != 0) && ((_prod == 0) || (p_over_under(_prod)))) {
+//      return {p_make_ptr(p_begin, p_end), {}};
+//    }
+
+//    _result = _prod;
+
+//    const auto _sub{p_incrementer(_result, static_cast<uint8_t>(*_ite -
+//    '0'))};
+
+//    if ((_result != 0) && ((_sub == 0) || (p_over_under(_sub)))) {
+//      return {p_make_ptr(p_begin, p_end), {}};
+//    }
+
+//    _result = _sub;
+
+//    ++_ite;
+//  }
+//  return {nullptr, _result};
+//}
+
+template <typename t_to, bool t_negative>
+std::pair<std::unique_ptr<std::string>, t_to> to_integer(
+    const char *p_begin, const char *p_end,
+
+    std::function<std::unique_ptr<std::string>(const char *, const char *,
+                                               const char **)>
+        p_is_valid,
+
+    std::function<std::pair<std::unique_ptr<std::string>, t_to>(
+        const char *p_begin, const char *p_end, t_to p_value)>
+        p_multiplier,
+
+    std::function<std::pair<std::unique_ptr<std::string>, t_to>(
+        const char *p_begin, const char *p_end, t_to p_result,
+        char p_to_increment)>
+        p_incrementer) {
+
+  // using next_int = typename next_int<sizeof(t_to), t_negative>::type;
 
   t_to _result = 0;
+
   const char *_ite{p_begin};
+
   while (_ite != p_end) {
-    if (std::isdigit(static_cast<unsigned char>(*_ite)) == 0) {
-      return {};
+
+    auto _ptr{p_is_valid(p_begin, p_end, &_ite)};
+    if (_ptr) {
+      return {std::move(_ptr), {}};
     }
 
-    uint8_t _digit = *_ite - '0';
+    std::pair<std::unique_ptr<std::string>, t_to> _pair;
 
-    if (overflow<t_to>(static_cast<int64_t>(_result * 10))) {
-      return {};
+    if (_result != 0) {
+      _pair = p_multiplier(p_begin, p_end, _result);
+
+      if (_pair.first) {
+        return {std::move(_pair.first), {}};
+      }
+
+      _result = _pair.second;
     }
 
-    _result *= 10;
+    _pair = p_incrementer(p_begin, p_end, _result, *_ite);
 
-    if (overflow<t_to>(static_cast<int64_t>(_result - _digit))) {
-      return {};
+    if (_pair.first) {
+      return {std::move(_pair.first), {}};
     }
 
-    _result -= _digit; // calculate in negatives to support INT_MIN, LONG_MIN,..
+    _result = _pair.second;
 
     ++_ite;
   }
-  return p_negative ? _result : -_result;
+  return {nullptr, _result};
 }
 
 } // namespace tenacitas::lib::conversions::alg::internal
