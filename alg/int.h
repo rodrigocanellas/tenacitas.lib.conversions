@@ -93,7 +93,7 @@ cvt(std::string &&p_from) {
 
 template <typename t_to, typ::base t_base = typ::base::b10>
 constexpr std::pair<std::unique_ptr<std::string>, t_to>
-cvt(std::string_view &p_from) {
+cvt(std::string_view p_from) {
   return cvt<t_to, t_base>(&p_from[0], &p_from[p_from.size()]);
 }
 

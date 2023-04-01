@@ -24,27 +24,31 @@
 
 namespace tenacitas::lib::conversions::alg::internal {
 
-template <size_t int_size, bool is_signed> struct next_int;
+template <typename t_int> struct next_int;
 
-template <> struct next_int<1, false> { using type = uint16_t; };
+template <> struct next_int<uint8_t> { using type = uint16_t; };
 
-template <> struct next_int<2, false> { using type = uint32_t; };
+template <> struct next_int<uint16_t> { using type = uint32_t; };
 
-template <> struct next_int<4, false> { using type = uint64_t; };
+template <> struct next_int<uint32_t> { using type = uint64_t; };
 
-template <> struct next_int<8, false> { using type = uint64_t; };
+template <> struct next_int<uint64_t> { using type = uint64_t; };
 
-template <> struct next_int<1, true> { using type = int16_t; };
+template <> struct next_int<int8_t> { using type = int16_t; };
 
-template <> struct next_int<2, true> { using type = int32_t; };
+template <> struct next_int<int16_t> { using type = int32_t; };
 
-template <> struct next_int<4, true> { using type = int64_t; };
+template <> struct next_int<int32_t> { using type = int64_t; };
 
-template <> struct next_int<8, true> { using type = int64_t; };
+template <> struct next_int<int64_t> { using type = int64_t; };
 
 static const std::map<char, std::string> g_ints_names{
     {'h', "uint8_t"},  {'a', "int8_t"},  {'t', "uint16_t"}, {'s', "int16_t"},
     {'j', "uint32_t"}, {'i', "int32_t"}, {'m', "uint64_t"}, {'l', "int64_t"}};
+
+template <typename t_int> std::string int_name() {
+  return internal::g_ints_names.at(typeid(t_int).name()[0]);
+}
 
 template <typename t_to, typ::base t_base> struct from_decimal;
 
@@ -85,10 +89,10 @@ template <typename t_to> struct from_decimal<t_to, typ::base::b10> {
     if (_unsigned) {
       return unsigned_int(_p, p_end);
     }
-    if (_negative) {
-      return signed_int(_p, p_end);
+    if (_negative && !_unsigned) {
+      return signed_negative_int(_p, p_end);
     }
-    return unsigned_int(_p, p_end);
+    return signed_positive_int(_p, p_end);
   }
 
 private:
@@ -160,15 +164,14 @@ private:
 
 private:
   constexpr std::pair<std::unique_ptr<std::string>, t_to>
-  unsigned_int(const char *p_begin, const char *p_end) {
-
-    using next_int = typename next_int<sizeof(t_to), false>::type;
+  signed_positive_int(const char *p_begin, const char *p_end) {
+    using next_int = typename next_int<t_to>::type;
 
     auto _multiplier =
         [&](const char *p_begin, const char *p_end,
             t_to p_to) -> std::pair<std::unique_ptr<std::string>, t_to> {
       auto _mul{static_cast<next_int>(p_to) * 10};
-      if (_mul > std::numeric_limits<t_to>::max()) {
+      if ((_mul == 0) || (_mul > std::numeric_limits<t_to>::max())) {
         return {std::make_unique<std::string>(
                     std::string{p_begin, p_end} +
                     " overflows the maximum value for " +
@@ -182,7 +185,7 @@ private:
         [&](const char *p_begin, const char *p_end, t_to p_value,
             char p_c) -> std::pair<std::unique_ptr<std::string>, t_to> {
       auto _sum{static_cast<next_int>(p_value + (p_c - '0'))};
-      if (_sum > std::numeric_limits<t_to>::max()) {
+      if ((_sum < 0) || (_sum > std::numeric_limits<t_to>::max())) {
         return {std::make_unique<std::string>(
                     std::string{p_begin, p_end} +
                     " overflows the maximum value for " +
@@ -195,7 +198,7 @@ private:
 
     is_valid _is_valid;
 
-    return to_integer<t_to, false>(
+    return to_integer<t_to>(
         p_begin, p_end,
         [&_is_valid](const char *p_begin, const char *p_end, const char **p_c) {
           return _is_valid(p_begin, p_end, p_c);
@@ -204,9 +207,9 @@ private:
   }
 
   constexpr std::pair<std::unique_ptr<std::string>, t_to>
-  signed_int(const char *p_begin, const char *p_end) {
+  signed_negative_int(const char *p_begin, const char *p_end) {
 
-    using next_int = typename next_int<sizeof(t_to), true>::type;
+    using next_int = typename next_int<t_to>::type;
 
     auto _multiplier =
         [&](const char *p_begin, const char *p_end,
@@ -226,9 +229,9 @@ private:
         [&](const char *p_begin, const char *p_end, t_to p_value,
             char p_c) -> std::pair<std::unique_ptr<std::string>, t_to> {
       auto _sum{static_cast<next_int>(p_value - (p_c - '0'))};
-      if (_sum < std::numeric_limits<t_to>::min()) {
+      if ((_sum > 0) || (_sum < std::numeric_limits<t_to>::min())) {
         return {std::make_unique<std::string>(
-                    std::string{p_begin, p_end} +
+                    "-" + std::string{p_begin, p_end} +
                     " underflows the minimum value for " +
                     g_ints_names.at(typeid(t_to).name()[0])),
                 {}};
@@ -239,7 +242,51 @@ private:
 
     is_valid _is_valid;
 
-    return to_integer<t_to, false>(
+    return to_integer<t_to>(
+        p_begin, p_end,
+        [&_is_valid](const char *p_begin, const char *p_end, const char **p_c) {
+          return _is_valid(p_begin, p_end, p_c);
+        },
+        _multiplier, _incrementer);
+  }
+
+  constexpr std::pair<std::unique_ptr<std::string>, t_to>
+  unsigned_int(const char *p_begin, const char *p_end) {
+
+    using next_int = typename next_int<t_to>::type;
+
+    auto _multiplier =
+        [&](const char *p_begin, const char *p_end,
+            t_to p_to) -> std::pair<std::unique_ptr<std::string>, t_to> {
+      auto _mul{static_cast<next_int>(p_to) * 10};
+      if ((_mul == 0) || (_mul > std::numeric_limits<t_to>::max())) {
+        return {std::make_unique<std::string>(
+                    std::string{p_begin, p_end} +
+                    " overflows the maximum value for " +
+                    g_ints_names.at(typeid(t_to).name()[0])),
+                {}};
+      }
+      return {nullptr, static_cast<t_to>(_mul)};
+    };
+
+    auto _incrementer =
+        [&](const char *p_begin, const char *p_end, t_to p_value,
+            char p_c) -> std::pair<std::unique_ptr<std::string>, t_to> {
+      auto _sum{static_cast<next_int>(p_value + (p_c - '0'))};
+      if ((_sum == 0) || (_sum > std::numeric_limits<t_to>::max())) {
+        return {std::make_unique<std::string>(
+                    std::string{p_begin, p_end} +
+                    " overflows the maximum value for " +
+                    g_ints_names.at(typeid(t_to).name()[0])),
+                {}};
+      }
+
+      return {nullptr, static_cast<t_to>(_sum)};
+    };
+
+    is_valid _is_valid;
+
+    return to_integer<t_to>(
         p_begin, p_end,
         [&_is_valid](const char *p_begin, const char *p_end, const char **p_c) {
           return _is_valid(p_begin, p_end, p_c);
@@ -247,6 +294,61 @@ private:
         _multiplier, _incrementer);
   }
 };
+
+template <typename t_to>
+std::pair<std::unique_ptr<std::string>, t_to> to_integer(
+    const char *p_begin, const char *p_end,
+
+    std::function<std::unique_ptr<std::string>(const char *, const char *,
+                                               const char **)>
+        p_is_valid,
+
+    std::function<std::pair<std::unique_ptr<std::string>, t_to>(
+        const char *p_begin, const char *p_end, t_to p_value)>
+        p_multiplier,
+
+    std::function<std::pair<std::unique_ptr<std::string>, t_to>(
+        const char *p_begin, const char *p_end, t_to p_result,
+        char p_to_increment)>
+        p_incrementer) {
+
+  // using next_int = typename next_int<sizeof(t_to), t_negative>::type;
+
+  t_to _result = 0;
+
+  const char *_ite{p_begin};
+
+  while (_ite != p_end) {
+
+    auto _ptr{p_is_valid(p_begin, p_end, &_ite)};
+    if (_ptr) {
+      return {std::move(_ptr), {}};
+    }
+
+    std::pair<std::unique_ptr<std::string>, t_to> _pair;
+
+    if (_result != 0) {
+      _pair = p_multiplier(p_begin, p_end, _result);
+
+      if (_pair.first) {
+        return {std::move(_pair.first), {}};
+      }
+
+      _result = _pair.second;
+    }
+
+    _pair = p_incrementer(p_begin, p_end, _result, *_ite);
+
+    if (_pair.first) {
+      return {std::move(_pair.first), {}};
+    }
+
+    _result = _pair.second;
+
+    ++_ite;
+  }
+  return {nullptr, _result};
+}
 
 // template <typename t_to, char t_thousand_separator>
 // constexpr std::pair<std::unique_ptr<std::string>, t_to>
@@ -428,62 +530,6 @@ private:
 //  }
 //  return {nullptr, _result};
 //}
-
-template <typename t_to, bool t_negative>
-std::pair<std::unique_ptr<std::string>, t_to> to_integer(
-    const char *p_begin, const char *p_end,
-
-    std::function<std::unique_ptr<std::string>(const char *, const char *,
-                                               const char **)>
-        p_is_valid,
-
-    std::function<std::pair<std::unique_ptr<std::string>, t_to>(
-        const char *p_begin, const char *p_end, t_to p_value)>
-        p_multiplier,
-
-    std::function<std::pair<std::unique_ptr<std::string>, t_to>(
-        const char *p_begin, const char *p_end, t_to p_result,
-        char p_to_increment)>
-        p_incrementer) {
-
-  // using next_int = typename next_int<sizeof(t_to), t_negative>::type;
-
-  t_to _result = 0;
-
-  const char *_ite{p_begin};
-
-  while (_ite != p_end) {
-
-    auto _ptr{p_is_valid(p_begin, p_end, &_ite)};
-    if (_ptr) {
-      return {std::move(_ptr), {}};
-    }
-
-    std::pair<std::unique_ptr<std::string>, t_to> _pair;
-
-    if (_result != 0) {
-      _pair = p_multiplier(p_begin, p_end, _result);
-
-      if (_pair.first) {
-        return {std::move(_pair.first), {}};
-      }
-
-      _result = _pair.second;
-    }
-
-    _pair = p_incrementer(p_begin, p_end, _result, *_ite);
-
-    if (_pair.first) {
-      return {std::move(_pair.first), {}};
-    }
-
-    _result = _pair.second;
-
-    ++_ite;
-  }
-  return {nullptr, _result};
-}
-
 } // namespace tenacitas::lib::conversions::alg::internal
 
 #endif

@@ -13,18 +13,19 @@
 
 #include <tenacitas.lib.conversions/alg/int.h>
 
-namespace tenacitas::lib::conversions::alg {
+// namespace tenacitas::lib::conversions::alg {
 
-/// \brief Basic type conversion template function
-template <typename t_to, typename t_from>
-constexpr std::pair<std::unique_ptr<std::string>, t_to> cvt(t_from &&) {
-  return {std::make_unique<std::string>("no conversion defined from '" +
-                                        std::string{typeid(t_from).name()} +
-                                        "' to '" +
-                                        std::string{typeid(t_to).name()} + "'"),
-          {}};
-}
+///// \brief Basic type conversion template function
+// template <typename t_to, typename t_from>
+// constexpr std::pair<std::unique_ptr<std::string>, t_to> cvt(t_from &&) {
+//   return {std::make_unique<std::string>("no conversion defined from '" +
+//                                         std::string{typeid(t_from).name()} +
+//                                         "' to '" +
+//                                         std::string{typeid(t_to).name()} +
+//                                         "'"),
+//           {}};
+// }
 
-} // namespace tenacitas::lib::conversions::alg
+//} // namespace tenacitas::lib::conversions::alg
 
 #endif
