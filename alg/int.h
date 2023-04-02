@@ -19,52 +19,14 @@ template <typename t_to, typ::base t_base = typ::base::b10>
 constexpr std::pair<std::unique_ptr<std::string>, t_to> cvt(const char *p_begin,
                                                             const char *p_end) {
   if constexpr (std::is_integral_v<t_to>) {
+    if constexpr (std::is_floating_point_v<t_to>) {
+      return {std::make_unique<std::string>(std::string{p_begin, p_end} +
+                                            "' is not a integer number"),
+              {}};
+    }
     return internal::from_decimal<t_to, t_base>()(p_begin, p_end);
   }
-
   return {std::make_unique<std::string>("undefined conversion"), {}};
-
-  //  if constexpr (std::is_floating_point_v<t_to>) {
-  //    return {std::make_unique<std::string>(std::string{p_begin, p_end} +
-  //                                          "' is not a integer number"),
-  //            {}};
-
-  //  bool _negative = false;
-
-  //  constexpr bool _unsigned{std::is_unsigned_v<t_to>};
-
-  //  const char *_p{p_begin};
-
-  //  if ((*_p == '0') && ((*(_p + 1) == 'x') || (*(_p + 1) == 'X'))) {
-  //    return internal::to_int_from_hexa<t_to>(_p + 2, p_end);
-  //  }
-
-  //  if ((*_p == 'x') || (*_p == 'X')) {
-  //    return internal::to_int_from_hexa<t_to>(_p + 1, p_end);
-  //  }
-
-  //  if (*_p == '+') {
-  //    ++_p;
-  //  } else if (*p_begin == '-') {
-  //    ++_p;
-  //    _negative = true;
-  //  }
-
-  //  if (_negative && _unsigned) {
-  //    return {std::make_unique<std::string>(
-  //                std::string{p_begin, p_end} + " is a negative number, but "
-  //                + internal::g_ints_names.at(typeid(t_to).name()[0]) + " is a
-  //                unsigned type"),
-  //            {}};
-  //  }
-
-  //  if (_unsigned) {
-  //    return internal::to_uint<t_to>(_p, p_end);
-  //  }
-  //  if (_negative) {
-  //    return internal::to_sint<t_to>(_p, p_end);
-  //  }
-  //  return internal::to_uint<t_to>(_p, p_end);
 }
 
 template <typename t_to, typ::base t_base = typ::base::b10>

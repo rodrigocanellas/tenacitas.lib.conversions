@@ -10,6 +10,7 @@
 
 using namespace tenacitas::lib;
 using namespace tenacitas::lib::conversions::alg;
+using namespace tenacitas::lib::conversions::typ;
 
 namespace tenacitas::lib::conversions::tst {
 struct a {
@@ -277,6 +278,91 @@ template <typename t_int> struct test_signed_int_min_underflow {
   }
 };
 
+template <size_t t_test_number, typename t_to, base t_base, t_to t_converted>
+struct test_converted {
+
+  static std::string desc() {
+    std::stringstream _stream;
+    _stream << "cvt<" << internal::int_name<t_to>() << ">(\"" << str
+            << "\"), base " << t_base;
+
+    return _stream.str();
+  }
+
+  bool operator()(const program::alg::options &) {
+    auto _result{cvt<t_to, t_base>(str)};
+
+    if (_result.first) {
+      std::cerr << "It did not convert, as it should have, because '"
+                << *_result.first << "'\n";
+
+      return false;
+    }
+
+    if (_result.second != t_converted) {
+      std::cerr << "It should have converted to '"
+                << (t_base == base::b16
+                        ? std::hex
+                        : (t_base == base::b8 ? std::oct : std::dec))
+                << static_cast<typename internal::next_int<t_to>::type>(
+                       t_converted)
+                << "', but it converted to "
+                << static_cast<uint16_t>(_result.second) << '\n';
+      return false;
+    }
+
+    std::cerr << "It converted to '"
+              << (t_base == base::b16
+                      ? std::hex
+                      : (t_base == base::b8 ? std::oct : std::dec))
+              << static_cast<typename internal::next_int<t_to>::type>(
+                     t_converted)
+              << "' as it should \n";
+    return true;
+  }
+
+  static std::string str;
+};
+template <size_t t_test_number, typename t_to, base t_base, t_to t_converted>
+std::string test_converted<t_test_number, t_to, t_base, t_converted>::str{
+    "--not-set--"};
+
+template <size_t t_test_number, typename t_to, base t_base>
+struct test_not_converted {
+
+  static std::string desc() {
+    std::stringstream _stream;
+    _stream << "cvt<" << internal::int_name<t_to>() << ">(\"" << str
+            << "\"), base " << t_base;
+
+    return _stream.str();
+  }
+
+  bool operator()(const program::alg::options &) {
+    auto _result{cvt<t_to, t_base>(str)};
+
+    if (_result.first) {
+      std::cerr << "It dit not convert, as expected, because '"
+                << *_result.first << "'\n";
+
+      return true;
+    }
+
+    std::cerr << "It converted to '"
+              << (t_base == base::b16
+                      ? std::hex
+                      : (t_base == base::b8 ? std::oct : std::dec))
+              << static_cast<typename internal::next_int<t_to>::type>(
+                     _result.second)
+              << "' but it should not\n";
+    return false;
+  }
+
+  static std::string str;
+};
+template <size_t t_test_number, typename t_to, base t_base>
+std::string test_not_converted<t_test_number, t_to, t_base>::str{"--not-set--"};
+
 using test0000 = test_unsigned_int_max<uint8_t>;
 using test0001 = test_unsigned_int_max_overflow<uint8_t>;
 using test0002 = test_signed_int_max<int8_t>;
@@ -305,363 +391,56 @@ using test0021 = test_signed_int_max_overflow<int64_t>;
 using test0022 = test_signed_int_min<int64_t>;
 using test0023 = test_signed_int_min_underflow<int64_t>;
 
-// struct test006 {
-//   static std::string desc() { return "cvt<uint8_t>(\"-8\")"; }
+using test0024 = test_converted<24, uint8_t, base::b16, 0xE>;
+template <> std::string test0024::str = "0xE";
 
-//  bool operator()(const program::alg::options &) {
+using test0025 = test_not_converted<25, uint8_t, base::b16>;
+template <> std::string test0025::str = "0x1C";
 
-//    auto _maybe{cvt<uint8_t>("-8")};
+using test0026 = test_not_converted<26, uint8_t, base::b10>;
+template <> std::string test0026::str = "-8";
 
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, as expected, because '" <<
-//      *_maybe.first
-//                << "'\n";
-//      return true;
-//    }
-//    std::cerr << "It should not have converted, but it did to " <<
-//    _maybe.second
-//              << '\n';
-//    return false;
-//  }
-//};
+using test0027 = test_converted<27, uint8_t, base::b2, 0b11>;
+template <> std::string test0027::str = "11";
 
-// struct test007 {
-//   static std::string desc() { return "cvt<uint8_t>(\"0000122\")"; }
+using test0028 = test_converted<28, uint16_t, base::b2, 0b01100110>;
+template <> std::string test0028::str = "01100110";
 
-//  bool operator()(const program::alg::options &) {
+using test0029 = test_converted<29, uint16_t, base::b2, 0b01100111>;
+template <> std::string test0029::str = "0b01100111";
 
-//    auto _maybe{cvt<uint8_t>("0000122")};
+using test0030 = test_converted<30, uint8_t, base::b8, 037>;
+template <> std::string test0030::str = "37";
 
-//    if (_maybe.first) {
-//      std::cerr << "It should have converted, but it did because '"
-//                << *_maybe.first << "'\n";
-//      return false;
-//    }
+using test0031 = test_converted<31, uint8_t, base::b10, 122>;
+template <> std::string test0031::str = "0000122";
 
-//    if (_maybe.second != 122) {
-//      std::cerr << "It should have converted to 122, but it converted to "
-//                << static_cast<uint16_t>(_maybe.second) << '\n';
-//      return false;
-//    }
+using test0032 = test_not_converted<32, uint8_t, base::b10>;
+template <> std::string test0032::str = "2.4";
 
-//    std::cerr << "It converted to " << static_cast<uint16_t>(_maybe.second)
-//              << ", as it should" << '\n';
-//    return true;
-//  }
-//};
+using test0033 = test_not_converted<33, uint8_t, base::b10>;
+template <> std::string test0033::str = "1c2";
 
-// struct test008 {
-//   static std::string desc() { return "cvt<uint8_t>(\"2.4\")"; }
+using test0034 = test_not_converted<34, int8_t, base::b10>;
+template <> std::string test0034::str = "-129";
 
-//  bool operator()(const program::alg::options &) {
+using test0035 = test_converted<35, uint8_t, base::b10, 127>;
+template <> std::string test0035::str = "127";
 
-//    auto _maybe{cvt<uint8_t>("2.4")};
+using test0036 = test_not_converted<36, uint32_t, base::b2>;
+template <> std::string test0036::str = "-1101";
 
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, as it should, because '"
-//                << *_maybe.first << "'\n";
-//      return true;
-//    }
+// causes a compile time error
+using test0037 = test_not_converted<37, int32_t, base::b16>;
+template <> std::string test0037::str = "9A";
 
-//    std::cerr << "It converte to " << static_cast<uint16_t>(_maybe.second)
-//              << ", but it should not" << '\n';
-//    return false;
-//  }
-//};
+// causes a compile time error
+using test0038 = test_not_converted<38, int32_t, base::b2>;
+template <> std::string test0038::str = "101";
 
-// struct test009 {
-//   static std::string desc() { return "cvt<uint8_t>(\"1c2\")"; }
-
-//  bool operator()(const program::alg::options &) {
-
-//    auto _maybe{cvt<uint8_t>("1c2")};
-
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, as it should, because '"
-//                << *_maybe.first << "'\n";
-//      return true;
-//    }
-
-//    std::cerr << "It converted to " << static_cast<uint16_t>(_maybe.second)
-//              << ", but it should not" << '\n';
-//    return false;
-//  }
-//};
-
-// struct test010 {
-//   static std::string desc() { return "cvt<int8_t>(\"-128\")"; }
-
-//  bool operator()(const program::alg::options &) {
-
-//    auto _maybe{cvt<int8_t>("-128")};
-
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert because '" << *_maybe.first
-//                << "', but it should have\n";
-//      return false;
-//    }
-
-//    auto _i{std::move(_maybe.second)};
-//    if (_i != -128) {
-//      std::cerr << "It converted to " << static_cast<int16_t>(_i)
-//                << ", but it should have converted to -128\n";
-//      return false;
-//    }
-
-//    std::cerr << "It converted to " << static_cast<int16_t>(_maybe.second)
-//              << ", as expected\n";
-//    return true;
-//  }
-//};
-
-// struct test011 {
-//   static std::string desc() { return "cvt<int8_t>(\"-129\")"; }
-
-//  bool operator()(const program::alg::options &) {
-
-//    auto _maybe{cvt<int8_t>("-129")};
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, as expected, because '" <<
-//      *_maybe.first
-//                << "'\n";
-//      return true;
-//    }
-
-//    std::cerr << "It should not have converted, but it did to " <<
-//    _maybe.second
-//              << '\n';
-//    return false;
-//  }
-//};
-
-// struct test012 {
-//   static std::string desc() { return "cvt<int8_t>(\"127\")"; }
-
-//  bool operator()(const program::alg::options &) {
-
-//    auto _maybe{cvt<int8_t>("127")};
-
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert because '" << *_maybe.first
-//                << "', but it should have\n";
-//      return false;
-//    }
-
-//    auto _i{std::move(_maybe.second)};
-//    if (_i != 127) {
-//      std::cerr << "It converted to " << static_cast<int16_t>(_i)
-//                << ", but it should have converted to 127\n";
-//      return false;
-//    }
-
-//    std::cerr << "It converted to " << static_cast<int16_t>(_maybe.second)
-//              << ", as expected\n";
-//    return true;
-//  }
-//};
-
-// struct test013 {
-//   static std::string desc() { return "cvt<int8_t>(\"128\")"; }
-
-//  bool operator()(const program::alg::options &) {
-
-//    auto _maybe{cvt<int8_t>("128")};
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, as expected, because '" <<
-//      *_maybe.first
-//                << "'\n";
-//      return true;
-//    }
-
-//    std::cerr << "It should not have converted, but it did to "
-//              << static_cast<int16_t>(_maybe.second) << '\n';
-//    return false;
-//  }
-//};
-
-// struct test014 {
-//   static std::string desc() {
-//     return "cvt<uint64_t>(\"18446744073709551615\"), which is "
-//            "std::numeric_limits<uint64_t>::max()";
-//   }
-
-//  bool operator()(const program::alg::options &) {
-
-//    std::stringstream _stream;
-//    _stream << std::numeric_limits<uint64_t>::max();
-
-//    std::string _value{_stream.str()};
-
-//    auto _maybe{cvt<uint64_t>(_value)};
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, but it should have, because '"
-//                << *_maybe.first << "'\n";
-//      return false;
-//    }
-
-//    if (_maybe.second != std::numeric_limits<uint64_t>::max()) {
-//      std::cerr << "It converted to " << _maybe.second
-//                << ", but it should have converted to " << _value << "\n";
-//    }
-
-//    std::cerr << "It converted to " << _maybe.second << ", as expected\n";
-//    return true;
-//  }
-//};
-
-// struct test015 {
-//   static std::string desc() {
-//     return "cvt<uint64_t>(\"18446744073709551616\"), which is "
-//            "std::numeric_limits<uint64_t>::max() + 1";
-//   }
-
-//  bool operator()(const program::alg::options &) {
-
-//    std::stringstream _stream;
-//    _stream << std::numeric_limits<uint64_t>::max();
-
-//    std::string _value{_stream.str()};
-
-//    int8_t _last(_value[_value.size() - 1] - '0');
-//    ++_last;
-//    _value[_value.size() - 1] = _last + '0';
-
-//    auto _maybe{cvt<uint64_t>(_value)};
-//    if (!_maybe.first) {
-//      std::cerr << "It converted " << _maybe.second
-//                << ", but it should not have\n";
-//      return false;
-//    }
-
-//    std::cerr << "It did not convert, as expected, because '" << *_maybe.first
-//              << "'\n";
-//    return true;
-//  }
-//};
-
-// struct test016 {
-//   static std::string desc() {
-//     return "cvt<int64_t>(\"9223372036854775807,\"), which is "
-//            "std::numeric_limits<int64_t>::max()";
-//   }
-
-//  bool operator()(const program::alg::options &) {
-
-//    std::stringstream _stream;
-//    _stream << std::numeric_limits<int64_t>::max();
-
-//    std::string _value{_stream.str()};
-
-//    auto _maybe{cvt<int64_t>(_value)};
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, but it should have, because '"
-//                << *_maybe.first << "'\n";
-//      return false;
-//    }
-
-//    if (_maybe.second != std::numeric_limits<int64_t>::max()) {
-//      std::cerr << "It converted to " << _maybe.second
-//                << ", but it should have converted to " << _value << "\n";
-//    }
-
-//    std::cerr << "It converted to " << _maybe.second << ", as expected\n";
-//    return true;
-//  }
-//};
-
-// struct test017 {
-//   static std::string desc() {
-//     return "cvt<int64_t>(\"9223372036854775808\"), which is "
-//            "std::numeric_limits<int64_t>::max() + 1";
-//   }
-
-//  bool operator()(const program::alg::options &) {
-
-//    std::stringstream _stream;
-//    _stream << std::numeric_limits<int64_t>::max();
-
-//    std::string _value{_stream.str()};
-
-//    int8_t _last(_value[_value.size() - 1] - '0');
-//    ++_last;
-//    _value[_value.size() - 1] = _last + '0';
-
-//    auto _maybe{cvt<int64_t>(_value)};
-//    if (!_maybe.first) {
-//      std::cerr << "It converted to " << _maybe.second
-//                << ", but it should not have\n";
-//      return false;
-//    }
-
-//    std::cerr << "It did not convert, as expected, because '" << *_maybe.first
-//              << "'\n";
-
-//    return true;
-//  }
-//};
-
-// struct test018 {
-//   static std::string desc() {
-//     return "cvt<int64_t>(\"-9223372036854775808\"), which is "
-//            "std::numeric_limits<int64_t>::min()";
-//   }
-
-//  bool operator()(const program::alg::options &) {
-
-//    std::stringstream _stream;
-//    _stream << std::numeric_limits<int64_t>::min();
-
-//    std::string _value{_stream.str()};
-
-//    auto _maybe{cvt<int64_t>(_value)};
-//    if (_maybe.first) {
-//      std::cerr << "It did not convert, but it should have, because '"
-//                << *_maybe.first << "'\n";
-//      return false;
-//    }
-
-//    if (_maybe.second != std::numeric_limits<int64_t>::min()) {
-//      std::cerr << "It should have converted to "
-//                << std::numeric_limits<int64_t>::min()
-//                << ", but it converted to " << _maybe.second << '\n';
-//      return false;
-//    }
-
-//    std::cerr << "It converted to " << _maybe.second << ", as it should \n";
-//    return true;
-//  }
-//};
-
-// struct test019 {
-//   static std::string desc() {
-//     return "cvt<int64_t>(\"-9223372036854775809\"), which is "
-//            "std::numeric_limits<int64_t>::max() - 1";
-//   }
-
-//  bool operator()(const program::alg::options &) {
-
-//    std::stringstream _stream;
-//    _stream << std::numeric_limits<int64_t>::min();
-
-//    std::string _value{_stream.str()};
-
-//    int8_t _last(_value[_value.size() - 1] - '0');
-//    ++_last;
-//    _value[_value.size() - 1] = _last + '0';
-
-//    auto _maybe{cvt<int64_t>(_value)};
-//    if (!_maybe.first) {
-//      std::cerr << "It converted to " << _maybe.second
-//                << ", but it should not have\n";
-//      return false;
-//    }
-
-//    std::cerr << "It did not convert, as expected, because '" << *_maybe.first
-//              << "'\n";
-
-//    return true;
-//  }
-//};
+// causes a compile time error
+using test0039 = test_not_converted<39, int32_t, base::b8>;
+template <> std::string test0039::str = "73";
 
 int main(int argc, char **argv) {
   test::alg::tester _test(argc, argv);
@@ -691,4 +470,26 @@ int main(int argc, char **argv) {
   run_test(_test, test0021);
   run_test(_test, test0022);
   run_test(_test, test0023);
+  run_test(_test, test0024);
+  run_test(_test, test0025);
+  run_test(_test, test0026);
+  run_test(_test, test0027);
+  run_test(_test, test0028);
+  run_test(_test, test0029);
+  run_test(_test, test0030);
+  run_test(_test, test0031);
+  run_test(_test, test0032);
+  run_test(_test, test0033);
+  run_test(_test, test0034);
+  run_test(_test, test0035);
+  run_test(_test, test0036);
+
+  // the test below causes a compile time error
+  //  run_test(_test, test0037);
+
+  // the test below causes a compile time error
+  //  run_test(_test, test0038);
+
+  // the test below causes a compile time error
+  //  run_test(_test, test0039);
 }
