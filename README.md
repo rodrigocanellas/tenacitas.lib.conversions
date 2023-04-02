@@ -24,7 +24,6 @@ There is a respository with build system based on QtCreator in `tenacitas.bld`, 
                     ├── tenacitas.lib.conversions
                     ├── tenacitas.lib.program
                     ├── tenacitas.lib.test
-                    ├── tenacitas.lib.test
 
 
 ## Using your own building system
