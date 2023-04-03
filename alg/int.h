@@ -922,7 +922,7 @@ cvt(std::string_view p_from) {
 ////#include <tuple>
 ////#include <vector>
 
-////#include <tenacitas.lib.type/alg/traits.h>
+////#include <tenacitas.lib.traits/alg/traits.h>
 
 //// using namespace tenacitas::lib;
 
