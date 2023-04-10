@@ -241,7 +241,7 @@ template <typename t_int> struct test_signed_int_min_underflow {
     std::stringstream _stream;
     if constexpr (std::is_same_v<t_int, int64_t>) {
       _stream << "cvt<" << internal::int_name<t_int>() << ">(\""
-              << "-9223372036854775808"
+              << "-9223372036854775809"
               << "\"), which is std::numeric_limits<"
               << internal::int_name<t_int>() << ">::min() - 1";
     } else {
