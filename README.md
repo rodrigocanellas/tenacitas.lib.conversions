@@ -1,6 +1,17 @@
 # tenacitas.lib.conversions
 Simple interface for type conversion
 
+### Dependencies for the library
+
+`tenacitas.lib.log` (only if `-DTENACITAS_LOG` is used)
+
+`tenacitas.lib.number`
+
+`tenacitas.lib.container`
+
+`tenacitas.lib.async`
+
+`tenacitas.lib.math`
 
 ### Dependencies for the tests
 
@@ -14,8 +25,7 @@ Simple interface for type conversion
 #### With your build system
 The only requirement is that the path to the directory above is in the compiler include path, `-I` in `gcc`.
 
-#### Building the tests with QtCreator
-The repository `tenacitas.bld` must be cloned aside `tenacitas.lib.conversions`. The `.pro` file is in `tenacitas.bld.qtcreator/tst/tenacitas.lib.conversions` directory.
-
+#### Building tests QtCreator
+The file `tenacitas.lib.conversions/bld/qtcreator/tenacitas.lib.conversions.pro` contains the configuration for building the tests.
 
 
